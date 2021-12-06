@@ -8,6 +8,8 @@ import torch
 from arg_setting import args
 from models import Model, MaskedNLLLoss
 import torch.optim as optim
+from pathlib import Path
+import time
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -49,7 +51,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     labels = []
     masks = []
     alphas, alphas_f, alphas_b, vids = [], [], [], []
-    assert not train or optimizer != None
+    assert not train or optimizer is not None
     if train:
         model.train()
     else:
@@ -60,8 +62,11 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         # import ipdb;ipdb.set_trace()
         textf, visuf, acouf, qmask, umask, label = \
             [d.cuda() for d in data[:-1]] if cuda else data[:-1]
-        # log_prob = model(torch.cat((textf,acouf,visuf),dim=-1), qmask,umask,att2=True) # seq_len, batch, n_classes
-        log_prob, alpha, alpha_f, alpha_b = model(textf, qmask, umask, att2=True)  # seq_len, batch, n_classes
+
+        # log_prob = model(torch.cat((textf, acouf, visuf), dim=-1), qmask, umask, att2=True)  # seq_len, batch, n_classes
+        log_prob = model(textf, qmask, umask, att2=True)  # seq_len, batch, n_classes
+        # log_prob, alpha, alpha_f, alpha_b = model(textf, qmask, umask, att2=True)  # seq_len, batch, n_classes
+
         lp_ = log_prob.transpose(0, 1).contiguous().view(-1, log_prob.size()[2])  # batch*seq_len, n_classes
         labels_ = label.view(-1)  # batch*seq_len
         loss = loss_function(lp_, labels_, umask)
@@ -78,11 +83,11 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
             #     for param in model.named_parameters():
             #         writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step()
-        else:
-            alphas += alpha
-            alphas_f += alpha_f
-            alphas_b += alpha_b
-            vids += data[-1]
+        # else:
+        #     alphas += alpha
+        #     alphas_f += alpha_f
+        #     alphas_b += alpha_b
+        #     vids += data[-1]
 
     if preds != []:
         preds = np.concatenate(preds)
@@ -97,7 +102,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
     return avg_loss, avg_accuracy, labels, preds, masks, avg_fscore, [alphas, alphas_f, alphas_b, vids]
 
 
-if __name__ == "_main__":
+if __name__ == "__main__":
     args.cuda = torch.cuda.is_available() and args.cuda is True
 
     batch_size = args.batch_size
@@ -139,4 +144,28 @@ if __name__ == "_main__":
                            lr=args.lr,
                            weight_decay=args.l2)
 
+    data_path = Path(args.data_root) / (args.dataset + "_features_raw.pkl")
 
+    train_loader, valid_loader, test_loader = get_IEMOCAP_loaders(data_path,
+                                                                  valid=0.0,
+                                                                  batch_size=batch_size,
+                                                                  num_workers=2)
+
+    best_loss, best_label, best_pred, best_mask = None, None, None, None
+    for e in range(n_epochs):
+        start_time = time.time()
+        train_loss, train_acc, _, _, _, train_fscore, _ = train_or_eval_model(model, loss_function,
+                                                                              train_loader, e, optimizer, True)
+        valid_loss, valid_acc, _, _, _, val_fscore, _ = train_or_eval_model(model, loss_function, valid_loader, e)
+
+        test_loss, test_acc, test_label, test_pred, \
+        test_mask, test_fscore, attentions = train_or_eval_model(model, loss_function, test_loader, e)
+
+        if best_loss is None or best_loss > test_loss:
+            best_loss, best_label, best_pred, best_mask, best_attn = \
+                test_loss, test_label, test_pred, test_mask, attentions
+
+        print('epoch {} train_loss {} train_acc {} train_fscore{} valid_loss {} valid_acc {} val_fscore{} '
+              'test_loss {} test_acc {} test_fscore {} time {}'.
+              format(e + 1, train_loss, train_acc, train_fscore, valid_loss, valid_acc, val_fscore,
+                     test_loss, test_acc, test_fscore, round(time.time() - start_time, 2)))

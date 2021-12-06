@@ -26,7 +26,7 @@ class IEMOCAPDataset(Dataset):
                torch.tensor(self.videoAudio[vid], dtype=torch.float32), \
                torch.tensor([[1, 0] if x == 'M' else [0, 1] for x in self.videoSpeakers[vid]], dtype=torch.float32), \
                torch.tensor([1] * len(self.videoLabels[vid]), dtype=torch.float32), \
-               torch.tensor(self.videoLabels[vid], dtype=torch.int32), \
+               torch.tensor(self.videoLabels[vid], dtype=torch.long), \
                vid
 
     def __len__(self):

@@ -210,7 +210,7 @@ class Model(nn.Module):
         qmask -> seq_len, batch, party
         """
 
-        emotions = self.dialog_rnn(U, qmask)  # seq_len, batch, D_e
+        emotions, _ = self.dialog_rnn(U, qmask)  # seq_len, batch, D_e
         # print(emotions)
         emotions = self.dropout_rec(emotions)
 
