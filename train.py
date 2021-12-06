@@ -2,7 +2,7 @@ from arg_setting import args
 from data_loader import IEMOCAPDataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data import DataLoader
-from sklearn.metrics import f1_score, confusion_matrix, accuracy_score
+from sklearn.metrics import f1_score, accuracy_score
 import numpy as np
 import torch
 from arg_setting import args
@@ -10,6 +10,7 @@ from models import Model, MaskedNLLLoss
 import torch.optim as optim
 from pathlib import Path
 import time
+from tensorboardX import SummaryWriter
 
 
 def get_train_valid_sampler(trainset, valid=0.1):
@@ -79,9 +80,9 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         losses.append(loss.item() * masks[-1].sum())
         if train:
             loss.backward()
-            # if args.tensorboard:
-            #     for param in model.named_parameters():
-            #         writer.add_histogram(param[0], param[1].grad, epoch)
+            if args.tensorboard:
+                for param in model.named_parameters():
+                    writer.add_histogram(param[0], param[1].grad, epoch)
             optimizer.step()
         # else:
         #     alphas += alpha
@@ -89,7 +90,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         #     alphas_b += alpha_b
         #     vids += data[-1]
 
-    if preds != []:
+    if preds:
         preds = np.concatenate(preds)
         labels = np.concatenate(labels)
         masks = np.concatenate(masks)
@@ -125,6 +126,10 @@ if __name__ == "__main__":
                   dropout=args.dropout)
     if cuda:
         model.cuda()
+
+    writer = None
+    if args.tensorboard:
+        writer = SummaryWriter(args.log_dir)
 
     loss_weights = torch.tensor([
         1 / 0.086747,
@@ -164,6 +169,17 @@ if __name__ == "__main__":
         if best_loss is None or best_loss > test_loss:
             best_loss, best_label, best_pred, best_mask, best_attn = \
                 test_loss, test_label, test_pred, test_mask, attentions
+
+        if args.tensorboard:
+            writer.add_scalars('accuracy', {'train': train_acc, 'test': test_acc}, e)
+            writer.add_scalars('loss', {'train': train_loss, 'test': test_loss}, e)
+            # writer.add_scalar('train: loss', train_acc, e)
+
+            # writer.add_scalar('test: accuracy', test_acc, e)
+            # writer.add_scalar('test: loss', test_loss, e)
+
+            # writer.add_scalar('test: accuracy/loss', test_acc / test_loss, e)
+            # writer.add_scalar('train: accuracy/loss', train_acc / train_loss, e)
 
         print('epoch {} train_loss {} train_acc {} train_fscore{} valid_loss {} valid_acc {} val_fscore{} '
               'test_loss {} test_acc {} test_fscore {} time {}'.

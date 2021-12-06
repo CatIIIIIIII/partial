@@ -113,21 +113,24 @@ class DialogueRNNCell(nn.Module):
         g_hist -> t-1, batch, D_g
         q0 -> batch, party, D_p
         e0 -> batch, self.D_e
+        q0_sel -> batch, D_p
+        U_c_ -> batch, party, D_p + D_a
         """
-        qm_idx = torch.argmax(qmask, 1)
+        qm_idx = torch.argmax(qmask, 1)  # indicate which person
         q0_sel = self._select_parties(q0, qm_idx)
 
         g_ = self.g_cell(torch.cat([U, q0_sel], dim=1),
-                         torch.zeros(U.size()[0], self.D_g).type(U.type()) if g_hist.size()[0] == 0 else g_hist[-1])
+                         torch.zeros([U.size()[0], self.D_g], dtype=torch.float32).type(U.type()) if g_hist.size()[0] == 0 else g_hist[-1])
         g_ = self.dropout(g_)
         if g_hist.size()[0] == 0:
-            c_ = torch.zeros(U.size()[0], self.D_g).type(U.type())
+            c_ = torch.zeros([U.size()[0], self.D_g], dtype=torch.float32).type(U.type())
             alpha = None
         else:
             c_, alpha = self.attention(g_hist, U)
         # c_ = torch.zeros(U.size()[0],self.D_g).type(U.type()) if g_hist.size()[0]==0\
         #         else self.attention(g_hist,U)[0] # batch, D_g
         U_c_ = torch.cat([U, c_], dim=1).unsqueeze(1).expand(-1, qmask.size()[1], -1)
+
         qs_ = self.p_cell(U_c_.contiguous().view(-1, self.D_m + self.D_g),
                           q0.view(-1, self.D_p)).view(U.size()[0], -1, self.D_p)
         qs_ = self.dropout(qs_)
@@ -135,8 +138,7 @@ class DialogueRNNCell(nn.Module):
         ql_ = q0
         qmask_ = qmask.unsqueeze(2)
         q_ = ql_ * (1 - qmask_) + qs_ * qmask_
-        e0 = torch.zeros(qmask.size()[0], self.D_e).type(U.type()) if e0.size()[0] == 0 \
-            else e0
+        e0 = torch.zeros(qmask.size()[0], self.D_e).type(U.type()) if e0.size()[0] == 0 else e0
         e_ = self.e_cell(self._select_parties(q_, qm_idx), e0)
         e_ = self.dropout(e_)
 
