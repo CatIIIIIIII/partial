@@ -58,10 +58,11 @@ if __name__ == "__main__":
     gt1 = trainData.labels.reshape(trainData.num_examples)
     gt1 = gt1.reshape([gt1.shape[0], 1])
     gt1 = torch.LongTensor(gt1)
+
     class_num = (torch.max(gt1) - torch.min(gt1) + 1).cpu()
     batch_size = torch.tensor(gt1.shape[0])
-    label_onehot = (torch.zeros(batch_size, class_num).scatter_(1, gt1 - 1,
-                                                                1))  # gt1 begin from 1 so we need to set the minimum of it to 0
+    # gt1 begin from 1 so we need to set the minimum of it to 0
+    label_onehot = (torch.zeros(batch_size, class_num).scatter_(1, gt1 - 1, 1))
     H_train = model.train(trainData.data, Sn_train, label_onehot, gt1, epoch[0])
 
     # test

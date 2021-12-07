@@ -6,12 +6,13 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-class CPMNets(nn.Module): # The architecture of the CPM
+
+class CPMNets(nn.Module):  # The architecture of the CPM
     """build model
     """
-    def __init__(self, view_num, trainLen, testLen, layer_size, v, lsd_dim=128, learning_rate=[0.001, 0.001], lamb=1):
+
+    def __init__(self, view_num, trainLen, testLen, layer_size, v, lsd_dim=128, lamb=1):
         """
-        :param learning_rate:learning rate of network and h
         :param view_num:view number
         :param layer_size:node of each net
         :param lsd_dim:latent space dimensionality
@@ -26,12 +27,13 @@ class CPMNets(nn.Module): # The architecture of the CPM
         self.trainLen = trainLen
         self.testLen = testLen
         self.lamb = lamb
-        #initialize forward methods 
+        # initialize forward methods
         self.net = self._make_view(v).cuda()
 
-    def forward(self,h):
+    def forward(self, h):
         h_views = self.net(h.cuda())
         return h_views
+
     '''
     def initialize_weight(self, dims_net):
         all_weight = dict()
@@ -42,18 +44,19 @@ class CPMNets(nn.Module): # The architecture of the CPM
             all_weight['b' + str(num)] = Variable(torch.zeros([dims_net[num]]),requires_grad = True)
         return all_weight
     '''
+
     def _make_view(self, v):
         dims_net = self.layer_size[v]
         net1 = nn.Sequential()
         w = torch.nn.Linear(self.lsd_dim, dims_net[0])
         nn.init.xavier_normal_(w.weight)
         nn.init.constant_(w.bias, 0.0)
-        net1.add_module('lin'+str(0), w)
+        net1.add_module('lin' + str(0), w)
         for num in range(1, len(dims_net)):
             w = torch.nn.Linear(dims_net[num - 1], dims_net[num])
             nn.init.xavier_normal_(w.weight)
             nn.init.constant_(w.bias, 0.0)
-            net1.add_module('lin'+str(num), w)
-            net1.add_module('drop'+str(num), torch.nn.Dropout(p=0.1))
+            net1.add_module('lin' + str(num), w)
+            net1.add_module('drop' + str(num), torch.nn.Dropout(p=0.1))
+
         return net1
-    

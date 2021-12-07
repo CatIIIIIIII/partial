@@ -12,7 +12,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
     """build model
     """
 
-    def __init__(self, device, view_num, trainLen, testLen, layer_size, lsd_dim=128, learning_rate=[0.001, 0.001],
+    def __init__(self, device, view_num, trainLen, testLen, layer_size, lsd_dim=128, learning_rate=None,
                  lamb=1):
         """
         :param learning_rate:learning rate of network and h
@@ -24,6 +24,8 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         """
         super(CPMNet_Works, self).__init__()
         # initialize parameter
+        if learning_rate is None:
+            learning_rate = [0.001, 0.001]
         self.view_num = view_num
         self.layer_size = layer_size
         self.lsd_dim = lsd_dim
@@ -81,6 +83,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
 
     def train(self, data, sn, label_onehot, gt, epoch, step=[5, 5]):
         global Reconstruction_LOSS
+        torch.autograd.set_detect_anomaly(True)
         index = np.array([x for x in range(self.trainLen)])
         shuffle(index)
         gt = gt.cuda()
@@ -94,11 +97,14 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         train_hn_op = torch.optim.Adam([self.h_train], self.learning_rate[1])
         for iter in range(epoch):
             for i in range(step[0]):
-                Reconstruction_LOSS = self.reconstruction_loss(self.h_train, data1, sn1).float()
+                Reconstruction_LOSS = self.reconstruction_loss(self.h_train, data1, sn1).float().cuda()
                 for v_num in range(self.view_num):
                     self.train_net_op[v_num].zero_grad()
-                    Reconstruction_LOSS.backward(retain_graph=True)
+                Reconstruction_LOSS.backward()
+
+                for v_num in range(self.view_num):
                     self.train_net_op[v_num].step()
+
             for i in range(step[1]):
                 loss1 = self.reconstruction_loss(self.h_train, data1, sn1).float().cuda()
                 loss2 = self.lamb * self.classification_loss(label_onehot, gt, self.h_train).float().cuda()
@@ -111,7 +117,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
             output = "Epoch : {:.0f}  ===> Reconstruction Loss = {:.4f}, Classification Loss = {:.4f} " \
                 .format((iter + 1), Reconstruction_LOSS, Classification_LOSS)
             print(output)
-        return (self.h_train)
+        return self.h_train
 
     def bulid_model(self):
         # initialize network
@@ -119,7 +125,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         train_net_op = []
         for v_num in range(self.view_num):
             net[str(v_num)] = CPMNets(self.view_num, self.trainLen, self.testLen, self.layer_size, v_num,
-                                      self.lsd_dim, self.learning_rate, self.lamb).cuda()
+                                      self.lsd_dim, self.lamb).cuda()
             train_net_op.append(torch.optim.Adam([{"params": net[str(v_num)].parameters()}], self.learning_rate[0]))
         return net, train_net_op
 
