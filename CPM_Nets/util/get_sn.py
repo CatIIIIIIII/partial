@@ -12,7 +12,7 @@ def get_sn(view_num, alldata_len, missing_rate):
     """
     one_rate = 1-missing_rate
     if one_rate <= (1 / view_num):
-        enc = OneHotEncoder(n_values=view_num)
+        enc = OneHotEncoder()
         view_preserve = enc.fit_transform(randint(0, view_num, size=(alldata_len, 1))).toarray()
         return view_preserve
     error = 1
@@ -20,7 +20,7 @@ def get_sn(view_num, alldata_len, missing_rate):
         matrix = randint(1, 2, size=(alldata_len, view_num))
         return matrix
     while error >= 0.005:
-        enc = OneHotEncoder(n_values=view_num)
+        enc = OneHotEncoder()
         view_preserve = enc.fit_transform(randint(0, view_num, size=(alldata_len, 1))).toarray()
         one_num = view_num * alldata_len * one_rate - alldata_len
         ratio = one_num / (view_num * alldata_len)

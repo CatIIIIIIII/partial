@@ -1,3 +1,5 @@
+import time
+
 import util.classfiy as classfiy
 import torch
 import numpy as np
@@ -63,8 +65,8 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         F_h_h = torch.mm(h_temp, (h_temp.T))
         F_hn_hn = torch.eye(F_h_h.shape[0], F_h_h.shape[1])
         F_h_h = F_h_h - F_h_h * (F_hn_hn.cuda())
-        label_num = label_onehot.sum(0,
-                                     keepdim=True)  # should sub 1.Avoid numerical errors; the number of samples of per label
+        # should sub 1.Avoid numerical errors; the number of samples of per label
+        label_num = label_onehot.sum(0, keepdim=True)
         label_onehot = label_onehot.float()
         F_h_h_sum = torch.mm(F_h_h, label_onehot)
         F_h_h_mean = F_h_h_sum / label_num
@@ -96,6 +98,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
             sn1[str(i)] = sn[:, i].reshape(self.trainLen, 1).cuda()
         train_hn_op = torch.optim.Adam([self.h_train], self.learning_rate[1])
         for iter in range(epoch):
+            st = time.time()
             for i in range(step[0]):
                 Reconstruction_LOSS = self.reconstruction_loss(self.h_train, data1, sn1).float().cuda()
                 for v_num in range(self.view_num):
@@ -114,8 +117,8 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
                 train_hn_op.step()
             Classification_LOSS = self.classification_loss(label_onehot, gt, self.h_train)
             Reconstruction_LOSS = self.reconstruction_loss(self.h_train, data1, sn1)
-            output = "Epoch : {:.0f}  ===> Reconstruction Loss = {:.4f}, Classification Loss = {:.4f} " \
-                .format((iter + 1), Reconstruction_LOSS, Classification_LOSS)
+            output = "Epoch : {:.0f}  ===> Reconstruction Loss = {:.4f}, Classification Loss = {:.4f}, Time = {:.2f} " \
+                .format((iter + 1), Reconstruction_LOSS, Classification_LOSS, time.time()-st)
             print(output)
         return self.h_train
 

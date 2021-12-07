@@ -22,7 +22,7 @@ if __name__ == "__main__":
                         help='number of epochs to test [default: 30]')
     parser.add_argument('--lamb', type=float, default=1,
                         help='trade off parameter [default: 1]')
-    parser.add_argument('--missing-rate', type=float, default=0,
+    parser.add_argument('--missing-rate', type=float, default=0.1,
                         help='view missing rate [default: 0]')
     args = parser.parse_args()
 
