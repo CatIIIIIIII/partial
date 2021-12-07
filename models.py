@@ -42,8 +42,8 @@ class MatchingAttention(nn.Module):
 
     def forward(self, M, x, mask=None):
         """
-        M -> (seq_len, batch, mem_dim)
-        x -> (batch, cand_dim)
+        M -> (seq_len, batch, mem_dim), g_hist..., key and value
+        x -> (batch, cand_dim), U..., query
         mask -> (batch, seq_len)
         """
         if type(mask) == type(None):
