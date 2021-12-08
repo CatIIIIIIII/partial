@@ -2,11 +2,12 @@ import numpy as np
 from sklearn.preprocessing import OneHotEncoder
 import torch
 
+
 def convert_to_one_hot(y, C):
     return np.eye(C)[y.reshape(-1)]
 
 
-def vote(lsd1, lsd2, label, n=1): 
+def vote(lsd1, lsd2, label, n=1):
     """Sometimes the prediction accuracy will be higher in this way.
     :param lsd1: train set's latent space data
     :param lsd2: test set's latent space data
@@ -28,7 +29,8 @@ def vote(lsd1, lsd2, label, n=1):
     gt_pre = np.array(count_list)
     return gt_pre.transpose()
 
-def ave(lsd1, lsd2, label_onehot, trainLen): 
+
+def ave(lsd1, lsd2, label_onehot):
     """In most cases, this method is used to predict the highest accuracy.
     :param lsd1: train set's latent space data
     :param lsd2: test set's latent space data
@@ -36,13 +38,14 @@ def ave(lsd1, lsd2, label_onehot, trainLen):
     :return: Predicted label
     """
     F_h_h = torch.mm(lsd2, (lsd1.T))
-    label_num = label_onehot.sum(0, keepdim=True)  # should sub 1.Avoid numerical errors; the number of samples of per label
+    label_num = label_onehot.sum(0,
+                                 keepdim=True)  # should sub 1.Avoid numerical errors; the number of samples of per label
     label_onehot = label_onehot.float()
     F_h_h_sum = torch.mm(F_h_h, label_onehot)
     F_h_h_mean = F_h_h_sum / label_num
     gt1 = torch.max(F_h_h_mean, axis=1)[1]  # gt begin from 1
     gt_ = gt1.type(torch.IntTensor) + 1
     gt_ = gt_.cuda()
-    gt_ = gt_.reshape([gt_.shape[0],1])
+    gt_ = gt_.reshape([gt_.shape[0], 1])
 
     return gt_.cpu().detach().numpy()

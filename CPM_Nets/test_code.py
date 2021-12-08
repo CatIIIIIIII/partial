@@ -36,6 +36,8 @@ if __name__ == "__main__":
     epoch = [args.epochs_train, args.epochs_test]
     learning_rate = [0.01, 0.01]
     # Randomly generated missing matrix
+    # print(trainData.num_examples)
+    # print(testData.num_examples)
     Sn = get_sn(view_num, trainData.num_examples + testData.num_examples, args.missing_rate)
     Sn_train = Sn[np.arange(trainData.num_examples)]
     Sn_test = Sn[np.arange(testData.num_examples) + trainData.num_examples]
@@ -58,6 +60,7 @@ if __name__ == "__main__":
     gt1 = trainData.labels.reshape(trainData.num_examples)
     gt1 = gt1.reshape([gt1.shape[0], 1])
     gt1 = torch.LongTensor(gt1)
+    print(gt1.shape)
 
     class_num = (torch.max(gt1) - torch.min(gt1) + 1).cpu()
     batch_size = torch.tensor(gt1.shape[0])
@@ -71,5 +74,5 @@ if __name__ == "__main__":
     gt2 = torch.LongTensor(gt2)
     H_test = model.test(testData.data, Sn_test, epoch[1])
 
-    label_pre = classfiy.ave(H_train, H_test, label_onehot.cuda(), testData.num_examples)
+    label_pre = classfiy.ave(H_train, H_test, label_onehot.cuda())
     print('Accuracy on the test set is {:.4f}'.format(accuracy_score(testData.labels, label_pre)))
