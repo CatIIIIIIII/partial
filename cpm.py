@@ -1,8 +1,6 @@
 import time
 
 import torch
-import numpy as np
-from numpy.random import shuffle
 from utils import xavier_init
 from models import CPMNets
 from torch.autograd import Variable
@@ -15,9 +13,9 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
     """build model
     """
 
-    def __init__(self, view_num, trainLen, testLen, dim_feats, lsd_dim, learning_rate, lamb):
+    def __init__(self, view_num, trainLen, testLen, dim_feats, lsd_dim, lr, lamb):
         """
-        :param learning_rate:learning rate of network and h
+        :param lr:learning rate of network and h
         :param view_num:view number
         :param dim_feats:dimension of all input features
         :param lsd_dim:latent space dimensionality
@@ -26,8 +24,8 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         """
         super(CPMNet_Works, self).__init__()
         # initialize parameter
-        if learning_rate is None:
-            learning_rate = [0.001, 0.001]
+        if lr is None:
+            lr = [0.001, 0.001]
         self.view_num = view_num
         layer_size = [[128, i] for i in dim_feats]
         self.layer_size = layer_size
@@ -35,7 +33,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         self.trainLen = trainLen
         self.testLen = testLen
         self.lamb = lamb
-        self.learning_rate = learning_rate
+        self.lr = lr
         # initialize latent space data
         self.h_train = self.H_init('train')
         self.h_test = self.H_init('test')
@@ -55,9 +53,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         loss = 0
         x_pred = self.calculate(h)
         for num in range(self.view_num):
-            loss = loss + (torch.pow((x_pred[str(num)].cpu() - x[str(num)].cpu())
-                                     , 2.0) * sn[str(num)].cpu()
-                           ).sum()
+            loss = loss + (torch.pow((x_pred[str(num)].cpu() - x[str(num)].cpu()), 2) * sn[str(num)].cpu()).sum()
         return loss
 
     def classification_loss(self, label_1hot, gt, h_temp):
@@ -88,9 +84,6 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
 
     def train_model(self, data, sn, label_1hot, gt, epoch, step):
         global Reconstruction_LOSS
-        torch.autograd.set_detect_anomaly(True)
-        index = np.array([x for x in range(self.trainLen)])
-        shuffle(index)
         sn1 = dict()
         for i in range(self.view_num):
             sn1[str(i)] = sn[:, i].reshape(self.trainLen, 1)
@@ -105,7 +98,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
                 for v_num in range(self.view_num):
                     self.train_net_op[v_num].step()
 
-            train_hn_op = torch.optim.Adam([self.h_train], self.learning_rate[1])
+            train_hn_op = torch.optim.Adam([self.h_train], self.lr[1])
             for i in range(step[1]):
                 loss = (self.reconstruction_loss(self.h_train, data, sn1) +
                         self.lamb * self.classification_loss(label_1hot, gt, self.h_train)).float().cuda()
@@ -126,7 +119,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         for v_num in range(self.view_num):
             net[str(v_num)] = CPMNets(self.view_num, self.trainLen, self.testLen, self.layer_size, v_num,
                                       self.lsd_dim, self.lamb).cuda()
-            train_net_op.append(torch.optim.Adam([{"params": net[str(v_num)].parameters()}], self.learning_rate[0]))
+            train_net_op.append(torch.optim.Adam([{"params": net[str(v_num)].parameters()}], self.lr[0]))
         return net, train_net_op
 
     def calculate(self, h):
@@ -137,12 +130,9 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
 
     def test_model(self, data, sn, epoch):
         sn1 = dict()
-        # data1 = dict()
-        # for v_num in range(self.view_num):
-        #     data1[str(v_num)] = torch.from_numpy(data[str(v_num)]).cuda()
         for i in range(self.view_num):
             sn1[str(i)] = sn[:, i].reshape(self.testLen, 1).cuda()
-        adj_hn_op = torch.optim.Adam([self.h_test], self.learning_rate[0])
+        adj_hn_op = torch.optim.Adam([self.h_test], self.lr[0])
         for e in range(epoch):
             # update the h
             for i in range(5):

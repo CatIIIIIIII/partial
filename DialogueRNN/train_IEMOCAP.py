@@ -27,7 +27,7 @@ def get_train_valid_sampler(trainset, valid=0.1):
 
 
 def get_IEMOCAP_loaders(path, batch_size=32, valid=0.1, num_workers=0, pin_memory=False):
-    trainset = IEMOCAPDataset(path=path)
+    trainset = IEMOCAPDataset(path=path, is_Sn=True, missing_rate=0.1)
     train_sampler, valid_sampler = get_train_valid_sampler(trainset, valid)
     train_loader = DataLoader(trainset,
                               batch_size=batch_size,
@@ -42,7 +42,7 @@ def get_IEMOCAP_loaders(path, batch_size=32, valid=0.1, num_workers=0, pin_memor
                               num_workers=num_workers,
                               pin_memory=pin_memory)
 
-    testset = IEMOCAPDataset(path=path, train=False)
+    testset = IEMOCAPDataset(path=path, train=False, is_Sn=True, missing_rate=0.1)
     test_loader = DataLoader(testset,
                              batch_size=batch_size,
                              collate_fn=testset.collate_fn,
@@ -69,6 +69,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         # import ipdb;ipdb.set_trace()
         textf, visuf, acouf, qmask, umask, label = \
             [d.cuda() for d in data[:-1]] if cuda else data[:-1]
+
         # log_prob = model(torch.cat((textf,acouf,visuf),dim=-1), qmask,umask,att2=True) # seq_len, batch, n_classes
         log_prob, alpha, alpha_f, alpha_b = model(textf, qmask, umask, att2=True)  # seq_len, batch, n_classes
         lp_ = log_prob.transpose(0, 1).contiguous().view(-1, log_prob.size()[2])  # batch*seq_len, n_classes
@@ -93,7 +94,7 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
             alphas_b += alpha_b
             vids += data[-1]
 
-    if preds != []:
+    if preds:
         preds = np.concatenate(preds)
         labels = np.concatenate(labels)
         masks = np.concatenate(masks)
@@ -183,7 +184,7 @@ if __name__ == '__main__':
                            weight_decay=args.l2)
 
     train_loader, valid_loader, test_loader = \
-        get_IEMOCAP_loaders('./IEMOCAP_features/IEMOCAP_features_raw.pkl',
+        get_IEMOCAP_loaders('/workspace/code/partial/data/IEMOCAP_features_raw.pkl',
                             valid=0.0,
                             batch_size=batch_size,
                             num_workers=2)

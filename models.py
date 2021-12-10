@@ -183,27 +183,26 @@ class DialogueRNN(nn.Module):
 
 
 class Model(nn.Module):
-
-    def __init__(self, D_m, D_g, D_p, D_e, D_h,
+    def __init__(self, D_h, D_g, D_p, D_e, D_y,
                  n_classes, context_attention='simple', D_a=100, dropout_rec=0.5,
                  dropout=0.5):
         super(Model, self).__init__()
 
-        self.D_m = D_m
+        self.D_h = D_h
         self.D_g = D_g
         self.D_p = D_p
         self.D_e = D_e
-        self.D_h = D_h
+        self.D_y = D_y
         self.n_classes = n_classes
         self.dropout = nn.Dropout(dropout)
         # self.dropout_rec = nn.Dropout(0.2)
         self.dropout_rec = nn.Dropout(dropout + 0.15)
-        self.dialog_rnn = DialogueRNN(D_m, D_g, D_p, D_e,
+        self.dialog_rnn = DialogueRNN(D_h, D_g, D_p, D_e,
                                       context_attention, D_a, dropout_rec)
-        self.linear1 = nn.Linear(D_e, D_h)
+        self.linear1 = nn.Linear(D_e, D_y)
         # self.linear2     = nn.Linear(D_h, D_h)
         # self.linear3     = nn.Linear(D_h, D_h)
-        self.smax_fc = nn.Linear(D_h, n_classes)
+        self.smax_fc = nn.Linear(D_y, n_classes)
 
         self.matchatt = MatchingAttention(D_e, D_e, att_type='general2')
 

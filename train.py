@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     model = Model(D_m, D_g, D_p, D_e, D_h,
                   n_classes=n_classes,
-                  context_attention=args.attention,
+                  context_attention=args.context_attention,
                   dropout_rec=args.rec_dropout,
                   dropout=args.dropout)
     if cuda:
@@ -149,9 +149,7 @@ if __name__ == "__main__":
                            lr=args.lr,
                            weight_decay=args.l2)
 
-    data_path = Path(args.data_root) / (args.dataset + "_features_raw.pkl")
-
-    train_loader, valid_loader, test_loader = get_IEMOCAP_loaders(data_path,
+    train_loader, valid_loader, test_loader = get_IEMOCAP_loaders(args.data_path,
                                                                   valid=0.0,
                                                                   batch_size=batch_size,
                                                                   num_workers=2)
@@ -181,7 +179,7 @@ if __name__ == "__main__":
             # writer.add_scalar('test: accuracy/loss', test_acc / test_loss, e)
             # writer.add_scalar('train: accuracy/loss', train_acc / train_loss, e)
 
-        print('epoch {} train_loss {} train_acc {} train_fscore{} valid_loss {} valid_acc {} val_fscore{} '
+        print('epoch {} train_loss {} train_acc {} train_fscore {} valid_loss {} valid_acc {} val_fscore{} '
               'test_loss {} test_acc {} test_fscore {} time {}'.
               format(e + 1, train_loss, train_acc, train_fscore, valid_loss, valid_acc, val_fscore,
                      test_loss, test_acc, test_fscore, round(time.time() - start_time, 2)))

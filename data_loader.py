@@ -20,8 +20,6 @@ def generate_utterance(path, data_set_train, data_set_test):
             vid_.append(vid)
             idx_.append(idx)
 
-        # break
-
     data_utterance_train = {"text": text_,
                             "visual": visual_,
                             "audio": audio_,
@@ -69,6 +67,16 @@ class IEMOCAPDataset(Dataset):
         self.lens = lens
         self.len = len(self.keys)
 
+        q_mask_ = []
+        for vid in self.keys:
+            q_mask = torch.tensor([[1, 0] if x == 'M' else [0, 1] for x in self.videoSpeakers[vid]],
+                                  dtype=torch.float32)
+            q_mask_.append(q_mask)
+        self.q_mask_ = q_mask_
+
+        self.u_mask_ = [torch.tensor([1] * len(self.videoLabels[x]), dtype=torch.float32) for x in self.keys]
+        self.label_ = [torch.tensor(self.videoLabels[x], dtype=torch.long) for x in self.keys]
+
     def __getitem__(self, index):
         vid = self.keys[index]
         return torch.tensor(self.videoText[vid], dtype=torch.float32), \
@@ -86,6 +94,15 @@ class IEMOCAPDataset(Dataset):
         dat = pd.DataFrame(data)
         return [pad_sequence(dat[i]) if i < 4 else pad_sequence(dat[i], True) if i < 6 else dat[i].tolist() for i in
                 dat]
+
+    def get_q_mask(self):
+        return self.q_mask_
+
+    def get_u_mask(self):
+        return self.u_mask_
+
+    def get_label(self):
+        return self.label_
 
 
 class IEMOCAPDatasetUtter:
@@ -124,14 +141,6 @@ class IEMOCAPDatasetUtter:
     def __len__(self):
         return self.len
 
-    # def __getitem__(self, index):
-    #     return self.text_[index], \
-    #            self.visual_[index], \
-    #            self.audio_[index], \
-    #            self.label_[index], \
-    #            self.vid_[index], \
-    #            self.idx_[index]
-
 
 def get_loaders(train_set, test_set, batch_size, num_workers, pin_memory=False):
     train_loader = DataLoader(train_set,
@@ -151,15 +160,32 @@ def get_loaders(train_set, test_set, batch_size, num_workers, pin_memory=False):
     return train_loader, test_loader
 
 
+class HDataset(Dataset):
+    def __init__(self, H, q_mask, u_mask, label, keys_lens):
+        self.data = H
+        self.q_mask = q_mask
+        self.u_mask = u_mask
+        self.label = label
+        accum_item = [0]
+        for k, l in keys_lens.items():
+            accum_item = accum_item + [accum_item[-1] + l]
+        self.accum_item = accum_item
+
+        self.len = len(accum_item) - 1
+
+    def __len__(self):
+        return self.len
+
+    def __getitem__(self, item):
+        return self.data[self.accum_item[item]:self.accum_item[item + 1], :], \
+               self.q_mask[item], self.u_mask[item], self.label[item]
+
+    def collate_fn(self, data):
+        dat = pd.DataFrame(data)
+        return [pad_sequence(dat[0]), pad_sequence(dat[1]), pad_sequence(dat[2], True), pad_sequence(dat[3], True)]
+
+
 if __name__ == "__main__":
     dataset_train = IEMOCAPDataset(path=args.data_path)
     dataset_test = IEMOCAPDataset(path=args.data_path, train=False)
     # d_T = 100, d_V=512, d_A = 100
-    generate_utterance(args.utterance_path,
-                       dataset_train,
-                       dataset_test)
-    dataset_utter_train = IEMOCAPDatasetUtter(args.utterance_path)
-    dataset_utter_test = IEMOCAPDatasetUtter(args.utterance_path, train=False)
-    print(len(dataset_utter_train))
-    print(len(dataset_utter_test))
-    print(dataset_train.keys)
