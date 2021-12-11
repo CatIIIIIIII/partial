@@ -53,7 +53,7 @@ def generate_utterance(path, data_set_train, data_set_test):
 
 
 class IEMOCAPDataset(Dataset):
-    def __init__(self, path, train=True):
+    def __init__(self, path, dim_h, train=True):
         self.videoIDs, self.videoSpeakers, self.videoLabels, self.videoText, \
         self.videoAudio, self.videoVisual, self.videoSentence, self.trainVid, \
         self.testVid = pickle.load(open(path, 'rb'), encoding='latin1')
@@ -61,10 +61,7 @@ class IEMOCAPDataset(Dataset):
         label index mapping = {'hap':0, 'sad':1, 'neu':2, 'ang':3, 'exc':4, 'fru':5}
         '''
         self.keys = [x for x in (self.trainVid if train else self.testVid)]
-        lens = []
-        for vid in self.keys:
-            lens.append(len(self.videoLabels[vid]))
-        self.lens = lens
+        self.lens = [len(self.videoLabels[x]) for x in self.keys]
         self.len = len(self.keys)
 
         q_mask_ = []
@@ -74,14 +71,31 @@ class IEMOCAPDataset(Dataset):
             q_mask_.append(q_mask)
         self.q_mask_ = q_mask_
 
-        self.u_mask_ = [torch.tensor([1] * len(self.videoLabels[x]), dtype=torch.float32) for x in self.keys]
+        self.u_mask_ = [torch.tensor([1] * x, dtype=torch.float32) for x in self.lens]
         self.label_ = [torch.tensor(self.videoLabels[x], dtype=torch.long) for x in self.keys]
+
+        self.Sn = None
+
+        self.keys_lens = {}
+        self.h = {}
+        for k, l in zip(self.keys, self.lens):
+            self.keys_lens[k] = l
+            self.h[k] = torch.zeros((l, dim_h), dtype=torch.float)
 
     def __getitem__(self, index):
         vid = self.keys[index]
-        return torch.tensor(self.videoText[vid], dtype=torch.float32), \
-               torch.tensor(self.videoVisual[vid], dtype=torch.float32), \
-               torch.tensor(self.videoAudio[vid], dtype=torch.float32), \
+        if self.Sn is None:
+            text = torch.tensor(self.videoText[vid], dtype=torch.float32)
+            visual = torch.tensor(self.videoVisual[vid], dtype=torch.float32)
+            video = torch.tensor(self.videoAudio[vid], dtype=torch.float32)
+        else:
+            sn = self.Sn[index].cpu()
+            text = torch.tensor(self.videoText[vid], dtype=torch.float32) * sn[:, 0].unsqueeze(dim=1)
+            visual = torch.tensor(self.videoVisual[vid], dtype=torch.float32) * sn[:, 1].unsqueeze(dim=1)
+            video = torch.tensor(self.videoAudio[vid], dtype=torch.float32) * sn[:, 2].unsqueeze(dim=1)
+        x = torch.cat((text, visual, video, self.h[vid]), dim=1)
+
+        return x, \
                torch.tensor([[1, 0] if x == 'M' else [0, 1] for x in self.videoSpeakers[vid]], dtype=torch.float32), \
                torch.tensor([1] * len(self.videoLabels[vid]), dtype=torch.float32), \
                torch.tensor(self.videoLabels[vid], dtype=torch.long), \
@@ -92,7 +106,7 @@ class IEMOCAPDataset(Dataset):
 
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
-        return [pad_sequence(dat[i]) if i < 4 else pad_sequence(dat[i], True) if i < 6 else dat[i].tolist() for i in
+        return [pad_sequence(dat[i]) if i < 2 else pad_sequence(dat[i], True) if i < 4 else dat[i].tolist() for i in
                 dat]
 
     def get_q_mask(self):
@@ -103,6 +117,24 @@ class IEMOCAPDataset(Dataset):
 
     def get_label(self):
         return self.label_
+
+    def get_keys_lens(self):
+        return self.keys_lens
+
+    def set_Sn(self, Sn):
+        accum_item = [0]
+        for i in self.lens:
+            accum_item = accum_item + [accum_item[-1] + i]
+
+        self.Sn = [Sn[accum_item[x]: accum_item[x + 1], :] for x in range(len(accum_item) - 1)]
+
+    def set_h(self, H):
+        accum_item = [0]
+        for k, l in zip(self.keys, self.lens):
+            accum_item = accum_item + [accum_item[-1] + l]
+
+        for i in range(len(self.keys)):
+            self.h[self.keys[i]] = H[accum_item[i]:accum_item[i+1], :]
 
 
 class IEMOCAPDatasetUtter:
@@ -124,19 +156,62 @@ class IEMOCAPDatasetUtter:
         '''
         self.len = len(self.text_)
         self.device = device
+        self.context = None
+
+        """
+        this vid contains all long video names, for train:
+
+        ['Ses04F_script02_1', 'Ses03F_impro03', 'Ses04F_script01_3', 'Ses01F_impro04', 'Ses01M_impro01',
+         'Ses04M_impro01', 'Ses04F_impro08', 'Ses03M_impro08a', 'Ses02F_script03_1', 'Ses01M_impro04',
+        ...
+         'Ses01M_script03_1', 'Ses03F_impro04', 'Ses01M_impro02', 'Ses02F_script01_3', 'Ses04M_script03_1',
+         'Ses01M_impro07']
+         """
+        self.vid = None
+        self.get_vid()
+
+        self.Sn = None
+        self.dim_g = 512
 
     def get_data(self):
         text_view = torch.stack(self.text_, dim=0).to(self.device)
         visual_view = torch.stack(self.visual_, dim=0).to(self.device)
         audio_view = torch.stack(self.audio_, dim=0).to(self.device)
-        return {"0": text_view, "1": visual_view, "2": audio_view}
+        if self.context is not None:
+            # before set context information
+            context = torch.cat(self.context, dim=0).to(self.device)
+            print(context.shape)
+        else:
+            context = torch.zeros((text_view.shape[0], self.dim_g), dtype=torch.float).to(self.device)
+
+        return {"0": text_view, "1": visual_view, "2": audio_view, "3": context}
 
     def get_label(self):
         labels = torch.tensor(self.label_, dtype=torch.long).unsqueeze(1).to(self.device)
         return labels
 
-    def get_info(self):
-        return self.vid_, self.idx_
+    def get_vid(self):
+        # remove repeated video ids and contain consequence in list
+        vid = []
+        for i in self.vid_:
+            if not i in vid:
+                vid.append(i)
+
+        self.vid = vid
+
+    def set_context(self, context):
+        c_v = []
+        for v in self.vid:
+            c_v.append(context[v])
+        self.context = c_v
+
+    def set_Sn(self, Sn):
+        self.Sn = Sn
+        ones = torch.ones((self.Sn.shape[0], 1), dtype=torch.long).cuda()
+        self.Sn = torch.cat((self.Sn, ones), dim=1)
+
+    def get_Sn(self):
+        return self.Sn
 
     def __len__(self):
         return self.len

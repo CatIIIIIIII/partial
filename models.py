@@ -127,7 +127,8 @@ class DialogueRNNCell(nn.Module):
             c_ = torch.zeros([U.size()[0], self.D_g], dtype=torch.float32).type(U.type())
             alpha = None
         else:
-            c_, alpha = self.attention(g_hist, U)
+            c_, alpha = self.attention(g_hist, U)  # batch_size, D_c
+
         # c_ = torch.zeros(U.size()[0],self.D_g).type(U.type()) if g_hist.size()[0]==0\
         #         else self.attention(g_hist,U)[0] # batch, D_g
         U_c_ = torch.cat([U, c_], dim=1).unsqueeze(1).expand(-1, qmask.size()[1], -1)
@@ -142,8 +143,7 @@ class DialogueRNNCell(nn.Module):
         e0 = torch.zeros(qmask.size()[0], self.D_e).type(U.type()) if e0.size()[0] == 0 else e0
         e_ = self.e_cell(self._select_parties(q_, qm_idx), e0)
         e_ = self.dropout(e_)
-
-        return g_, q_, e_, alpha
+        return g_, q_, e_, c_, alpha
 
 
 class DialogueRNN(nn.Module):
@@ -170,16 +170,19 @@ class DialogueRNN(nn.Module):
         q_ = torch.zeros(qmask.size()[1], qmask.size()[2], self.D_p).type(U.type())  # batch, party, D_p
         e_ = torch.zeros(0).type(U.type())  # batch, D_e
         e = e_
+        c_ = torch.zeros(0).type(U.type()).cuda()
+        c = c_
 
         alpha = []
         for u_, qmask_ in zip(U, qmask):
-            g_, q_, e_, alpha_ = self.dialogue_cell(u_, qmask_, g_hist, q_, e_)
+            g_, q_, e_, c_, alpha_ = self.dialogue_cell(u_, qmask_, g_hist, q_, e_)
             g_hist = torch.cat([g_hist, g_.unsqueeze(0)], 0)
             e = torch.cat([e, e_.unsqueeze(0)], 0)
+            c = torch.cat([c, c_.unsqueeze(0)], 0)
             if type(alpha_) != type(None):
                 alpha.append(alpha_[:, 0, :])
 
-        return e, alpha  # seq_len, batch, D_e
+        return e, c, alpha  # seq_len, batch, D_e
 
 
 class Model(nn.Module):
@@ -212,7 +215,7 @@ class Model(nn.Module):
         qmask -> seq_len, batch, party
         """
 
-        emotions, _ = self.dialog_rnn(U, qmask)  # seq_len, batch, D_e
+        emotions, c, _ = self.dialog_rnn(U, qmask)  # seq_len, batch, D_e
         # print(emotions)
         emotions = self.dropout_rec(emotions)
 
@@ -229,7 +232,7 @@ class Model(nn.Module):
         # hidden = F.relu(self.linear3(hidden))
         hidden = self.dropout(hidden)
         log_prob = F.log_softmax(self.smax_fc(hidden), 2)  # seq_len, batch, n_classes
-        return log_prob
+        return log_prob, c
 
 
 class MaskedNLLLoss(nn.Module):

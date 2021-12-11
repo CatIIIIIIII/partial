@@ -61,11 +61,9 @@ def train_or_eval_model(model, loss_function, dataloader, epoch, optimizer=None,
         if train:
             optimizer.zero_grad()
         # import ipdb;ipdb.set_trace()
-        textf, visuf, acouf, qmask, umask, label = \
-            [d.cuda() for d in data[:-1]] if cuda else data[:-1]
+        x, qmask, umask, label = [d.cuda() for d in data]
 
-        # log_prob = model(torch.cat((textf, acouf, visuf), dim=-1), qmask, umask, att2=True)  # seq_len, batch, n_classes
-        log_prob = model(textf, qmask, umask, att2=True)  # seq_len, batch, n_classes
+        log_prob = model(x, qmask, umask, att2=True)  # seq_len, batch, n_classes
         # log_prob, alpha, alpha_f, alpha_b = model(textf, qmask, umask, att2=True)  # seq_len, batch, n_classes
 
         lp_ = log_prob.transpose(0, 1).contiguous().view(-1, log_prob.size()[2])  # batch*seq_len, n_classes
@@ -111,13 +109,13 @@ if __name__ == "__main__":
     cuda = args.cuda
     n_epochs = args.epochs
 
-    D_m = 100
-    D_g = 500
-    D_p = 500
-    D_e = 300
-    D_h = 300
+    D_m = 712
+    D_g = args.dim_g
+    D_p = args.dim_p
+    D_e = args.dim_e
+    D_h = args.dim_y
 
-    D_a = 100  # concat attention
+    D_a = args.dim_a  # concat attention
 
     model = Model(D_m, D_g, D_p, D_e, D_h,
                   n_classes=n_classes,

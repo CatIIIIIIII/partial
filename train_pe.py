@@ -1,3 +1,5 @@
+import time
+
 from arg_setting import args
 from torch.utils.data import DataLoader
 from data_loader import IEMOCAPDataset, IEMOCAPDatasetUtter, get_loaders, HDataset
@@ -9,16 +11,16 @@ import torch
 from sklearn.metrics import accuracy_score
 
 if __name__ == "__main__":
+    use_p = args.use_p
     epochs_ep = args.epochs_ep
     num_views = args.num_views
     data_path = args.data_path
     e_batch_size = args.e_batch_size
-    missing_rate = args.missing_rate
-    steps_p = args.steps_p
-    epochs_p = args.epochs_p
-    # dimension of different modalities
+    missing_rate = 0
+
     dim_features = args.dim_features
     # dimension of hidden representation from different modalities
+    dim_init = sum(dim_features)
     dim_h = args.dim_h
     lr_p = args.lr_p
     lambda_p = args.lambda_p
@@ -35,12 +37,16 @@ if __name__ == "__main__":
     dim_y = args.dim_y
     dim_a = args.dim_a
 
+    epochs_init = args.epochs_init
+
     rec_dropout = args.rec_dropout
     dropout = args.dropout
     epochs_e = args.epochs_e
+    steps_e = args.steps_e
 
     # Load dataset of emotion scenario (long video of dialogue)
-    train_set, test_set = IEMOCAPDataset(path=data_path), IEMOCAPDataset(path=data_path, train=False)
+    train_set = IEMOCAPDataset(path=data_path, dim_h=dim_h)
+    test_set = IEMOCAPDataset(path=data_path, dim_h=dim_h, train=False)
     # video ids and utter lens of train/test sets
     train_keys_lens = {}
     test_keys_lens = {}
@@ -62,7 +68,7 @@ if __name__ == "__main__":
     len_train_utter = len(train_set_utter)
     len_test_utter = len(test_set_utter)
 
-    Sn = get_sn(num_views, len_train_utter + len_test_utter, args.missing_rate)
+    Sn = get_sn(num_views, len_train_utter + len_test_utter, missing_rate)  # [num_samples, num_views]
     Sn_train = Sn[np.arange(len_train_utter)]
     Sn_test = Sn[np.arange(len_test_utter) + len_train_utter]
 
@@ -70,56 +76,35 @@ if __name__ == "__main__":
     Sn_train = torch.tensor(Sn_train, dtype=torch.long).to(device)
     Sn_test = torch.tensor(Sn_test, dtype=torch.long).to(device)
 
+    train_set_utter.set_Sn(Sn_train)
+    test_set_utter.set_Sn(Sn_test)
+
     train_1hot = (torch.zeros([len_train_utter, n_classes]).to(device).scatter_(1, train_gt_utter, 1))
 
     # Model building
-    model_p = CPMNet_Works(num_views,
+    model_p = CPMNet_Works(num_views + 1,  # number of view and context
                            len(train_set_utter),
                            len(test_set_utter),
-                           dim_features,
+                           dim_features + [dim_g],
                            dim_h,
                            lr_p,
                            lambda_p).to(device)
 
-    model_e = Dialogue_Works(model_type, dim_h, dim_g, dim_p, dim_e, dim_y,
-                             n_classes=n_classes,
-                             context_attention=context_attention,
-                             dropout_rec=rec_dropout,
-                             dropout=dropout,
-                             lr=lr_e,
-                             loss_weights=loss_weights)
+    data_set_e_train = train_set
+    data_set_e_test = test_set
 
-    # label_pre = ave(H_train, H_test, train_1hot.cuda())
-    # print('Accuracy on the test set is {:.4f}'
-    #       .format(accuracy_score(test_gt_utter.cpu().numpy(), label_pre)))
+    steps_p = args.steps_p
+    epochs_p = args.epochs_p
 
-    for e_ep in range(epochs_ep):
-        # ----- train partial multi-view ----- #
-        H_train = model_p.train_model(train_data_utter,
-                                      Sn_train,
-                                      train_1hot,
-                                      train_gt_utter,
-                                      epochs_p[0],
-                                      steps_p).detach()
-        # dataset of hidden representation
-        data_set_H = HDataset(H_train,
-                              train_set.get_q_mask(),
-                              train_set.get_u_mask(),
-                              train_set.get_label(),
-                              train_keys_lens)
-
-        data_loader_H = DataLoader(data_set_H,
-                                   batch_size=e_batch_size,
-                                   collate_fn=data_set_H.collate_fn,
-                                   shuffle=False)
-
-        model_e.train_model(data_loader_H, epochs_e)
-        # test
-        # H_test = model_p.test_model(test_data_utter,
-        #                             Sn_test,
-        #                             epochs_p[1])
-
-        pass
-
-        # ----- train emotion flow ----- #
-        pass
+    H_train = model_p.train_model(train_set_utter.get_data(),
+                                  train_set_utter.get_Sn(),
+                                  train_1hot,
+                                  train_gt_utter,
+                                  epochs_p[0],
+                                  steps_p).detach()
+    # ----- test partial multi-view ----- #
+    H_test = model_p.test_model(test_set_utter.get_data(),
+                                test_set_utter.get_Sn(),
+                                epochs_p[1])
+    label_pre = ave(H_train, H_test, train_1hot)
+    print('Accuracy on the test set is {:.4f}'.format(accuracy_score(test_gt_utter.cpu(), label_pre)))
