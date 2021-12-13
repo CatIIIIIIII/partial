@@ -6,9 +6,10 @@ from sklearn.metrics import f1_score, accuracy_score
 
 
 class Dialogue_Works:
-    def __init__(self, model, D_h, D_g, D_p, D_e, D_y,
+    def __init__(self, model, D_h, D_g, D_p, D_e, D_y, party,
                  n_classes,
                  context_attention,
+                 party_attention,
                  dropout_rec,
                  dropout,
                  lr,
@@ -35,6 +36,8 @@ class Dialogue_Works:
         self.dropout = dropout
         self.loss_weights = loss_weights
         self.lr = lr
+        self.party_attention = party_attention
+        self.party = party
 
         self.net, self.loss_function, self.optimizer = self.build_model()
 
@@ -80,7 +83,7 @@ class Dialogue_Works:
                 losses.append(loss.item() * masks[-1].sum())
 
                 if train:
-                    loss.backward()
+                    loss.backward(retain_graph=True)
                     self.optimizer.step()
 
                 # if args.tensorboard:
@@ -112,9 +115,10 @@ class Dialogue_Works:
     def build_model(self):
         net = None
         if self.model == "base":
-            net = Model(self.D_h, self.D_g, self.D_p, self.D_e, self.D_y,
+            net = Model(self.D_h, self.D_g, self.D_p, self.D_e, self.D_y, self.party,
                         n_classes=self.n_classes,
                         context_attention=self.context_attention,
+                        party_attention=self.party_attention,
                         dropout_rec=self.dropout_rec,
                         dropout=self.dropout).cuda()
 

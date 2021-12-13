@@ -16,7 +16,7 @@ if __name__ == "__main__":
     num_views = args.num_views
     data_path = args.data_path
     e_batch_size = args.e_batch_size
-    missing_rate = 0
+    missing_rate = 0.8
 
     dim_features = args.dim_features
     # dimension of hidden representation from different modalities
@@ -101,7 +101,7 @@ if __name__ == "__main__":
                                   train_1hot,
                                   train_gt_utter,
                                   epochs_p[0],
-                                  steps_p).detach()
+                                  steps_p)
     # ----- test partial multi-view ----- #
     H_test = model_p.test_model(test_set_utter.get_data(),
                                 test_set_utter.get_Sn(),

@@ -9,6 +9,7 @@ from utils import get_sn, ave
 import numpy as np
 import torch
 from sklearn.metrics import accuracy_score
+# torch.autograd.set_detect_anomaly(True)
 
 if __name__ == "__main__":
     use_p = args.use_p
@@ -32,6 +33,7 @@ if __name__ == "__main__":
     lr_e = args.lr_e
     loss_weights = args.loss_weights
     model_type = args.model_type
+    party_attention = args.party_attention
 
     dim_g = args.dim_g
     dim_p = args.dim_p
@@ -45,6 +47,7 @@ if __name__ == "__main__":
     dropout = args.dropout
     epochs_e = args.epochs_e
     steps_e = args.steps_e
+    party = args.party
 
     # Load dataset of emotion scenario (long video of dialogue)
     train_set = IEMOCAPDataset(path=data_path, dim_h=dim_h)
@@ -93,9 +96,10 @@ if __name__ == "__main__":
 
     # model_e = Dialogue_Works(model_type, dim_h, dim_g, dim_p, dim_e, dim_y,
     model_e = Dialogue_Works(model_type,
-                             sum(dim_features) + dim_h, dim_g, dim_p, dim_e, dim_y,
+                             sum(dim_features) + dim_h, dim_g, dim_p, dim_e, dim_y, party,
                              n_classes=n_classes,
                              context_attention=context_attention,
+                             party_attention=party_attention,
                              dropout_rec=rec_dropout,
                              dropout=dropout,
                              lr=lr_e,
