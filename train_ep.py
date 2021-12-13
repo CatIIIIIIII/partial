@@ -80,7 +80,7 @@ if __name__ == "__main__":
     test_set.set_Sn(Sn_test)
     test_set_utter.set_Sn(Sn_test)
 
-    train_1hot = (torch.zeros([len_train_utter, n_classes]).to(device).scatter_(1, train_gt_utter, 1))
+    train_1hot = (torch.zeros((len_train_utter, n_classes)).to(device).scatter_(1, train_gt_utter, 1))
 
     # Model building
     model_p = CPMNet_Works(num_views + 1,  # number of view and context
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     # for e_init in range(epochs_init):
 
     for e_ep in range(epochs_ep):
-        print("# =============== EP EPOCH {}=============== #".format(e_ep))
+        print("# =============== EP EPOCH {} =============== #".format(e_ep+1))
         # train and test data loader
         data_loader_e_train = DataLoader(data_set_e_train,
                                          batch_size=e_batch_size,
@@ -121,6 +121,10 @@ if __name__ == "__main__":
                                         batch_size=e_batch_size,
                                         collate_fn=data_set_e_test.collate_fn,
                                         shuffle=False)
+
+        # net parameter init
+        model_e.init_model()
+
         # ep algorithm
         train_c, test_c = None, None
         for e_emo in range(args.epochs_e):
@@ -151,11 +155,11 @@ if __name__ == "__main__":
                                           train_1hot,
                                           train_gt_utter,
                                           epochs_p[0],
-                                          steps_p).detach()
+                                          steps_p)
             # ----- test partial multi-view ----- #
             H_test = model_p.test_model(test_set_utter.get_data(),
                                         test_set_utter.get_Sn(),
-                                        epochs_p[1]).detach()
+                                        epochs_p[1])
             label_pre = ave(H_train, H_test, train_1hot)
             print('Accuracy on the test set is {:.4f}'.format(accuracy_score(test_gt_utter.cpu(), label_pre)))
 

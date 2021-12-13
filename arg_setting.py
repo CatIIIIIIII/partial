@@ -9,13 +9,13 @@ parser.add_argument("--data-root", default="./data", type=str, help="Data root p
 parser.add_argument("--data-name", default="IEMOCAP", type=str, help="Name of used dataset.")
 parser.add_argument("--data-path", default="", type=str, help="Path to data file.")
 parser.add_argument("--utterance-path", default="", type=str, help="Path to utterance data file.")
-parser.add_argument('--missing-rate', type=float, default=0.5, help='View missing rate [default: 0].')
+parser.add_argument('--missing-rate', type=float, default=0.8, help='View missing rate [default: 0].')
 parser.add_argument('--device', type=str, default="cuda:0", help='Train and test device.')
 parser.add_argument('--use-p', type=bool, default=True, help='Use partial multi-view algorithm.')
 
 # ----- ep algorithm ----- #
 parser.add_argument("--epochs-init", default=30, type=int, help="Number of context init epochs.")
-parser.add_argument("--epochs-ep", default=5, type=int, help="Number of ep algorithm epochs.")
+parser.add_argument("--epochs-ep", default=2, type=int, help="Number of ep algorithm epochs.")
 parser.add_argument("--num-views", default=0, type=int, help="Number of data views.")
 parser.add_argument("--dim-features", default=[], type=list, help="Dimension of multi-view feature. [text, visual, "
                                                                   "audio]")
@@ -32,7 +32,7 @@ parser.add_argument('--dim-a', type=int, default=128, help='Dimension state of a
 parser.add_argument('--context-attention', default='general', help='Attention type')
 parser.add_argument('--lr-e', type=list, default=[1e-4, 1e-5], help='learning rate, [lr, L2 regularization]')
 parser.add_argument('--model-type', type=str, default="base", help='Model used to classify emotion.')
-parser.add_argument("--epochs-e", default=15, type=int, help="Number of emotional algorithm epochs.")
+parser.add_argument("--epochs-e", default=20, type=int, help="Number of emotional algorithm epochs.")
 parser.add_argument("--steps-e", default=[1, 1], type=int, help="Steps of emotional algorithm train and test")
 
 # ----- partial multi-view algorithm ----- #
@@ -40,7 +40,7 @@ parser.add_argument("--lr-p", default=[0.01, 0.01], type=list, help="Learning ra
 parser.add_argument('--lambda-p', type=float, default=1, help='trade off parameter [default: 1]')
 parser.add_argument("--epochs-p", default=[60, 30], type=list,
                     help="Number of partial algorithm epochs, [train, test]")  # [60, 30]
-parser.add_argument('--dim-h', type=int, default=128, help='Dimension of representation h.')
+parser.add_argument('--dim-h', type=int, default=256, help='Dimension of representation h.')
 parser.add_argument('--steps-p', type=list, default=[5, 5], help='Steps for inner optimize, [p(x|h), p(y|h)]')
 
 parser.add_argument('--batch-size', type=int, default=30, help='batch size')

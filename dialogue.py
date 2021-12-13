@@ -1,4 +1,4 @@
-from models import Model, MaskedNLLLoss
+from models import Model, MaskedNLLLoss, init_parameters
 import torch.optim as optim
 import torch
 import numpy as np
@@ -63,7 +63,7 @@ class Dialogue_Works:
                 # print(label.shape)
                 log_prob, c = self.net(x, q_mask, u_mask, att2=True)  # seq_len, batch, n_classes
 
-                c = c.detach()
+                # c = c.detach()
                 for i in range(len(vid)):
                     key = vid[i]
                     context[key] = c[:keys_lens[key], i, :]
@@ -109,9 +109,6 @@ class Dialogue_Works:
             # print(output)
             # return avg_loss, avg_accuracy, labels, preds, masks, avg_fscore, [alphas, alphas_f, alphas_b, vids]
 
-    def test_model(self):
-        pass
-
     def build_model(self):
         net = None
         if self.model == "base":
@@ -131,3 +128,5 @@ class Dialogue_Works:
 
         return net, loss_function, optimizer
 
+    def init_model(self):
+        init_parameters(self.net)

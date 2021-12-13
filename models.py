@@ -1,6 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import init
+
+
+def init_parameters(net):
+    for name, param in net.named_parameters():
+        if 'weight' in name:
+            init.xavier_normal_(param)
+        elif 'bias' in name:
+            init.constant_(param, val=0)
 
 
 # ----- Dialogue Emotion Networks ----- #
@@ -119,19 +128,19 @@ class DialogueRNNCell(nn.Module):
         q0_sel = self._select_parties(q0, qm_idx)
 
         g_ = self.g_cell(torch.cat([U, q0_sel], dim=1),
-                         torch.zeros([U.size()[0], self.D_g], dtype=torch.float32).type(U.type()) if g_hist.size()[
+                         torch.zeros((U.size()[0], self.D_g), dtype=torch.float32).type(U.type()) if g_hist.size()[
                                                                                                          0] == 0 else
                          g_hist[-1])
         g_ = self.dropout(g_)
         if g_hist.size()[0] == 0:
-            c_ = torch.zeros([U.size()[0], self.D_g], dtype=torch.float32).type(U.type())
+            c_ = torch.zeros((U.size()[0], self.D_g), dtype=torch.float32).type(U.type())
             alpha = None
         else:
             c_, alpha = self.attention(g_hist, U)  # batch_size, D_c
 
         # c_ = torch.zeros(U.size()[0],self.D_g).type(U.type()) if g_hist.size()[0]==0\
         #         else self.attention(g_hist,U)[0] # batch, D_g
-        U_c_ = torch.cat([U, c_], dim=1).unsqueeze(1).expand(-1, qmask.size()[1], -1)
+        U_c_ = torch.cat((U, c_), dim=1).unsqueeze(1).expand(-1, qmask.size()[1], -1)
 
         qs_ = self.p_cell(U_c_.contiguous().view(-1, self.D_m + self.D_g),
                           q0.view(-1, self.D_p)).view(U.size()[0], -1, self.D_p)
@@ -177,8 +186,8 @@ class DialogueRNN(nn.Module):
         for u_, qmask_ in zip(U, qmask):
             g_, q_, e_, c_, alpha_ = self.dialogue_cell(u_, qmask_, g_hist, q_, e_)
             g_hist = torch.cat([g_hist, g_.unsqueeze(0)], 0)
-            e = torch.cat([e, e_.unsqueeze(0)], 0)
-            c = torch.cat([c, c_.unsqueeze(0)], 0)
+            e = torch.cat((e, e_.unsqueeze(0)), dim=0)
+            c = torch.cat((c, c_.unsqueeze(0)), dim=0)
             if type(alpha_) != type(None):
                 alpha.append(alpha_[:, 0, :])
 
@@ -285,17 +294,6 @@ class CPMNets(nn.Module):  # The architecture of the CPM
     def forward(self, h):
         h_views = self.net(h.cuda())
         return h_views
-
-    '''
-    def initialize_weight(self, dims_net):
-        all_weight = dict()
-        all_weight['w0'] = Variable(xavier_init(self.lsd_dim, dims_net[0]),requires_grad = True)
-        all_weight['b0'] = Variable(torch.zeros([dims_net[0]]),requires_grad = True)
-        for num in range(1, len(dims_net)):
-            all_weight['w' + str(num)] = Variable(xavier_init(dims_net[num - 1], dims_net[num]),requires_grad = True)
-            all_weight['b' + str(num)] = Variable(torch.zeros([dims_net[num]]),requires_grad = True)
-        return all_weight
-    '''
 
     def _make_view(self, v):
         dims_net = self.layer_size[v]

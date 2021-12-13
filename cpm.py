@@ -144,3 +144,6 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
             output = "Epoch : {:.0f}  ===> Reconstruction Loss = {:.2f}".format((e + 1), Reconstruction_LOSS)
             print(output)
         return self.h_test
+
+    # def init(self):
+    #     init_parameters()
