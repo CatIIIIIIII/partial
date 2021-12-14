@@ -64,7 +64,7 @@ class Dialogue_Works:
                 # print(q_mask.shape)
                 # print(u_mask.shape)
                 # print(label.shape)
-                log_prob, c = self.net(x, q_mask, u_mask, att2=True)  # seq_len, batch, n_classes
+                log_prob, c = self.net(x, q_mask, u_mask)  # seq_len, batch, n_classes
 
                 # c = c.detach()
                 for i in range(len(vid)):
@@ -83,7 +83,7 @@ class Dialogue_Works:
                 losses.append(loss.item() * masks[-1].sum())
 
                 if train:
-                    loss.backward(retain_graph=True)
+                    loss.backward()
                     self.optimizer.step()
 
                 # if args.tensorboard:

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
+from Attention.model.attention.SelfAttention import ScaledDotProductAttention
 
 
 def init_parameters(net):
@@ -156,10 +157,18 @@ class DialogueRNNCell(nn.Module):
         return g_, q_, e_, c_.detach(), alpha
 
 
+def _select_parties(X, indices):
+    q0_sel = []
+    for idx, j in zip(indices, X):
+        q0_sel.append(j[idx].unsqueeze(0))
+    q0_sel = torch.cat(q0_sel, 0)
+    return q0_sel
+
+
 class DialogueRNNCell_test(nn.Module):
 
     def __init__(self, D_m, D_g, D_p, D_e, party,
-                 context_attention='simple', party_attention='simple', D_a=100, dropout=0.5):
+                 context_attention='simple', party_attention='simple', D_a=128, dropout=0.5):
         super(DialogueRNNCell_test, self).__init__()
 
         self.D_m = D_m
@@ -170,7 +179,7 @@ class DialogueRNNCell_test(nn.Module):
 
         self.g_cell = nn.GRUCell(D_m + D_p, D_g)
         self.p_cell = nn.GRUCell(D_m + D_g, D_p)
-        self.e_cell = nn.GRUCell(D_p, D_e)
+        self.e_cell = nn.GRUCell(D_p + D_p, D_e)
         self.dropout = nn.Dropout(dropout)
 
         if context_attention == 'simple':
@@ -178,14 +187,8 @@ class DialogueRNNCell_test(nn.Module):
         else:
             self.attention = MatchingAttention(D_g, D_m, D_a, context_attention)
 
-        self.attention_p = MatchingAttention(D_p, D_e, D_a, party_attention)
-
-    def _select_parties(self, X, indices):
-        q0_sel = []
-        for idx, j in zip(indices, X):
-            q0_sel.append(j[idx].unsqueeze(0))
-        q0_sel = torch.cat(q0_sel, 0)
-        return q0_sel
+        self.attention_p = MatchingAttention(D_p, D_p, D_a, party_attention)
+        self.sa = ScaledDotProductAttention(d_model=self.D_p, d_k=self.D_p, d_v=self.D_p, h=8).cuda()
 
     def forward(self, U, qmask, g_hist, q0, q_hist, e0):
         """
@@ -200,7 +203,7 @@ class DialogueRNNCell_test(nn.Module):
         U_c_ -> batch, party, D_m + D_g
         """
         qm_idx = torch.argmax(qmask, 1)  # indicate which person
-        q0_sel = self._select_parties(q0, qm_idx)
+        q0_sel = _select_parties(q0, qm_idx)
 
         g_ = self.g_cell(torch.cat([U, q0_sel], dim=1),
                          torch.zeros((U.size()[0], self.D_g), dtype=torch.float32).type(U.type()) if g_hist.size()[
@@ -225,6 +228,7 @@ class DialogueRNNCell_test(nn.Module):
         qmask_ = qmask.unsqueeze(2)
         q_ = ql_ * (1 - qmask_) + qs_ * qmask_
 
+        e0 = torch.zeros(qmask.size()[0], self.party, self.D_e).type(U.type()) if e0.size()[0] == 0 else e0
         # personal attention for emotion context
         Q = torch.zeros((U.shape[0], self.party, self.D_p), dtype=torch.float32).type(U.type())
         if q_hist.size()[0] == 0:
@@ -232,16 +236,16 @@ class DialogueRNNCell_test(nn.Module):
             alpha_p = None
         else:
             for p in range(self.party):
-                Q_, _ = self.attention_p(q_hist[:, :, p, :], e0[:, 1-p, :])  # batch_size, D_p
+                Q_, _ = self.attention_p(q_hist[:, :, p, :], q_[:, 1-p, :])  # batch_size, D_p
                 Q[:, p, :] = Q_
+            # Q = self.sa(q_, q_, q_)
 
-        e_ = self.e_cell(Q.contiguous().view(-1, self.D_p),
-                          e0.view(-1, self.D_e)).view(U.size()[0], -1, self.D_e)
-        e_ = self.dropout(e_)
+        Q_q_ = torch.cat([Q, q_], dim=2)
+        e_ = self.e_cell(Q_q_.contiguous().view(-1, self.D_p + self.D_p),
+                         e0.view(-1, self.D_e)).view(U.size()[0], -1, self.D_e)
 
         # e_ = self.e_cell(self._select_parties(q_, qm_idx), e0)
         e_ = self.dropout(e_)
-        print(e_.shape)
         return g_, q_, e_, c_.detach(), alpha
 
 
@@ -270,30 +274,45 @@ class DialogueRNN(nn.Module):
         U -> seq_len, batch, D_m
         qmask -> seq_len, batch, party
         e -> seq_len, batch, party, D_e
+        e_ret -> seq_len, batch, D_e
         c -> # seq_len, batch, D_e
+        e_ -> # batch, party, D_e
         """
 
         g_hist = torch.zeros(0).type(U.type())  # 0-dimensional tensor
         q_hist = torch.zeros(0).type(U.type())  # 0-dimensional tensor
 
         q_ = torch.zeros(qmask.size()[1], qmask.size()[2], self.D_p).type(U.type())  # batch, party, D_p
-        e_ = torch.zeros(1, qmask.size()[1], qmask.size()[2], self.D_e).type(U.type())  # 1, batch, party, D_e
+        e_ = torch.zeros(0).type(U.type())
         e = e_
         c_ = torch.zeros(0).type(U.type()).cuda()
         c = c_
+        e_ret = torch.zeros(0).type(U.type())
 
         alpha = []
         for u_, qmask_ in zip(U, qmask):
-            g_, q_, e_, c_, alpha_ = self.dialogue_cell(u_, qmask_, g_hist, q_, q_hist, e_)
+            if self.party_attention is not None:
+                g_, q_, e_, c_, alpha_ = self.dialogue_cell(u_, qmask_, g_hist, q_, q_hist, e_)
+            else:
+                g_, q_, e_, c_, alpha_ = self.dialogue_cell(u_, qmask_, g_hist, q_, e_)
             g_hist = torch.cat([g_hist, g_.unsqueeze(0)], 0)
             q_hist = torch.cat([q_hist, q_.unsqueeze(0)], 0)
 
             e = torch.cat((e, e_.unsqueeze(0)), dim=0)
             c = torch.cat((c, c_.unsqueeze(0)), dim=0)
+
+            if self.party_attention is not None:
+                qm_idx = torch.argmax(qmask_, dim=1)
+                e_party = _select_parties(e_, qm_idx)
+
+                e_ret = torch.cat([e_ret, e_party.unsqueeze(0)], dim=0) if e_ret.shape[0] != 0 else e_party.unsqueeze(0)
+            # print(e_ret.shape)
             if type(alpha_) != type(None):
                 alpha.append(alpha_[:, 0, :])
-
-        return e, c, alpha
+        if self.party_attention is not None:
+            return e_ret, c, alpha
+        else:
+            return e, c, alpha
 
 
 class Model(nn.Module):
@@ -310,14 +329,15 @@ class Model(nn.Module):
         self.party = party
         self.n_classes = n_classes
         self.dropout = nn.Dropout(dropout)
+        self.party_attention = party_attention
         # self.dropout_rec = nn.Dropout(0.2)
         self.dropout_rec = nn.Dropout(dropout + 0.15)
         self.dialog_rnn = DialogueRNN(D_h, D_g, D_p, D_e, self.party,
                                       context_attention, party_attention, D_a, dropout_rec)
         self.linear1 = nn.Linear(D_e, D_y)
-        # self.linear2     = nn.Linear(D_h, D_h)
+        self.linear2 = nn.Linear(D_y, D_y // 2)
         # self.linear3     = nn.Linear(D_h, D_h)
-        self.smax_fc = nn.Linear(D_y, n_classes)
+        self.smax_fc = nn.Linear(D_y // 2, n_classes)
 
         self.matchatt = MatchingAttention(D_e, D_e, att_type='general2')
 
@@ -332,7 +352,7 @@ class Model(nn.Module):
         emotions = self.dropout_rec(emotions)
 
         # emotions = emotions.unsqueeze(1)
-        if att2:
+        if att2 and self.party_attention == "simple":
             att_emotions = []
             for t in emotions:
                 att_emotions.append(self.matchatt(emotions, t, mask=umask)[0].unsqueeze(0))
@@ -340,7 +360,7 @@ class Model(nn.Module):
             hidden = F.relu(self.linear1(att_emotions))
         else:
             hidden = F.relu(self.linear1(emotions))
-        # hidden = F.relu(self.linear2(hidden))
+        hidden = F.relu(self.linear2(hidden))
         # hidden = F.relu(self.linear3(hidden))
         hidden = self.dropout(hidden)
         log_prob = F.log_softmax(self.smax_fc(hidden), 2)  # seq_len, batch, n_classes

@@ -9,7 +9,7 @@ parser.add_argument("--data-root", default="./data", type=str, help="Data root p
 parser.add_argument("--data-name", default="IEMOCAP", type=str, help="Name of used dataset.")
 parser.add_argument("--data-path", default="", type=str, help="Path to data file.")
 parser.add_argument("--utterance-path", default="", type=str, help="Path to utterance data file.")
-parser.add_argument('--missing-rate', type=float, default=0.8, help='View missing rate [default: 0].')
+parser.add_argument('--missing-rate', type=float, default=0, help='View missing rate [default: 0].')
 parser.add_argument('--device', type=str, default="cuda:0", help='Train and test device.')
 parser.add_argument('--use-p', type=bool, default=False, help='Use partial multi-view algorithm.')
 parser.add_argument('--party', type=int, default=2, help='Dialogue party number.')
@@ -33,9 +33,9 @@ parser.add_argument('--dim-a', type=int, default=128, help='Dimension state of a
 parser.add_argument('--context-attention', default='general', help='Global state attention type.')
 parser.add_argument('--party-attention', default='general', help='Party state attention type')
 
-parser.add_argument('--lr-e', type=list, default=[1e-4, 1e-5], help='learning rate, [lr, L2 regularization]')
+parser.add_argument('--lr-e', type=list, default=[1e-4, 1e-4], help='learning rate, [lr, L2 regularization]')
 parser.add_argument('--model-type', type=str, default="base", help='Model used to classify emotion.')
-parser.add_argument("--epochs-e", default=20, type=int, help="Number of emotional algorithm epochs.")
+parser.add_argument("--epochs-e", default=200, type=int, help="Number of emotional algorithm epochs.")
 parser.add_argument("--steps-e", default=[1, 1], type=int, help="Steps of emotional algorithm train and test")
 
 # ----- partial multi-view algorithm ----- #
@@ -49,7 +49,7 @@ parser.add_argument('--steps-p', type=list, default=[5, 5], help='Steps for inne
 parser.add_argument('--batch-size', type=int, default=30, help='batch size')
 parser.add_argument('--class-weight', action='store_true', default=True, help='class weight')
 parser.add_argument('--lr', type=float, default=0.0001, metavar='LR', help='learning rate')
-parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
+parser.add_argument('--l2', type=float, default=0.0001, metavar='L2', help='L2 regularization weight')
 parser.add_argument('--epochs', type=int, default=30, metavar='E', help='number of epochs')
 parser.add_argument('--rec-dropout', type=float, default=0.1, metavar='rec_dropout', help='rec_dropout rate')
 parser.add_argument('--dropout', type=float, default=0.1, metavar='dropout', help='dropout rate')
