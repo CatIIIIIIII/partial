@@ -9,6 +9,7 @@ from utils import get_sn, ave
 import numpy as np
 import torch
 from sklearn.metrics import accuracy_score
+
 # torch.autograd.set_detect_anomaly(True)
 
 if __name__ == "__main__":
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     model_p = CPMNet_Works(num_views + 1,  # number of view and context
                            len(train_set_utter),
                            len(test_set_utter),
-                           dim_features + [dim_g],
+                           dim_features + [dim_e],
                            dim_h,
                            lr_p,
                            lambda_p).to(device)
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     # for e_init in range(epochs_init):
 
     for e_ep in range(epochs_ep):
-        print("# =============== EP EPOCH {} =============== #".format(e_ep+1))
+        print("# =============== EP EPOCH {} =============== #".format(e_ep + 1))
         # train and test data loader
         data_loader_e_train = DataLoader(data_set_e_train,
                                          batch_size=e_batch_size,
