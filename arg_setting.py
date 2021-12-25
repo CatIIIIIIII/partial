@@ -9,7 +9,7 @@ parser.add_argument("--data-root", default="./data", type=str, help="Data root p
 parser.add_argument("--data-name", default="IEMOCAP", type=str, help="Name of used dataset.")
 parser.add_argument("--data-path", default="", type=str, help="Path to data file.")
 parser.add_argument("--utterance-path", default="", type=str, help="Path to utterance data file.")
-parser.add_argument('--missing-rate', type=float, default=0.3, help='View missing rate [default: 0].')
+parser.add_argument('--missing-rate', type=float, default=0, help='View missing rate [default: 0].')
 parser.add_argument('--device', type=str, default="cuda:0", help='Train and test device.')
 parser.add_argument('--use-p', type=bool, default=True, help='Use partial multi-view algorithm.')
 parser.add_argument('--party', type=int, default=2, help='Dialogue party number.')
