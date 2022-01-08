@@ -37,7 +37,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         # initialize latent space data
         self.h_train = self.H_init('train')
         self.h_test = self.H_init('test')
-        self.h = torch.cat((self.h_train, self.h_test), 0).cuda()
+        self.h = torch.cat((self.h_train, self.h_test), dim=0).cuda()
         # initialize nets for different views
         self.net, self.train_net_op = self.build_model()
 

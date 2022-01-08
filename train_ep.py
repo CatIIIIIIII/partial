@@ -90,7 +90,7 @@ if __name__ == "__main__":
     model_p = CPMNet_Works(num_views + 1,  # number of view and context
                            len(train_set_utter),
                            len(test_set_utter),
-                           dim_features + [dim_e],
+                           dim_features + [2 * dim_e],
                            dim_h,
                            lr_p,
                            lambda_p).to(device)
