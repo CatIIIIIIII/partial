@@ -13,7 +13,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
     """build model
     """
 
-    def __init__(self, view_num, trainLen, testLen, dim_feats, lsd_dim, lr, lamb):
+    def __init__(self, view_num, trainLen, testLen, dim_feats, lsd_dim, lr, lamb, ex):
         """
         :param lr:learning rate of network and h
         :param view_num:view number
@@ -40,13 +40,14 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         self.h = torch.cat((self.h_train, self.h_test), dim=0).cuda()
         # initialize nets for different views
         self.net, self.train_net_op = self.build_model()
+        self.x_pred = {}
 
     def H_init(self, tvt):
         h = None
         if tvt == 'train':
-            h = Variable(xavier_init(self.trainLen, self.lsd_dim), requires_grad=True)
+            h = xavier_init(self.trainLen, self.lsd_dim).detach().requires_grad_(True)
         elif tvt == 'test':
-            h = Variable(xavier_init(self.testLen, self.lsd_dim), requires_grad=True)
+            h = xavier_init(self.testLen, self.lsd_dim).detach().requires_grad_(True)
         return h
 
     def reconstruction_loss(self, h, x, sn):
@@ -126,6 +127,7 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         h_views = dict()
         for v_num in range(self.view_num):
             h_views[str(v_num)] = self.net[str(v_num)](h)
+
         return h_views
 
     def test_model(self, data, sn, epoch):
@@ -135,11 +137,10 @@ class CPMNet_Works(nn.Module):  # Main parts of the test code
         adj_hn_op = torch.optim.Adam([self.h_test], self.lr[0])
         for e in range(epoch):
             # update the h
-            for i in range(5):
-                Reconstruction_LOSS = self.reconstruction_loss(self.h_test, data, sn1).float()
-                adj_hn_op.zero_grad()
-                Reconstruction_LOSS.backward()
-                adj_hn_op.step()
+            Reconstruction_LOSS = self.reconstruction_loss(self.h_test, data, sn1).float()
+            adj_hn_op.zero_grad()
+            Reconstruction_LOSS.backward()
+            adj_hn_op.step()
             Reconstruction_LOSS = self.reconstruction_loss(self.h_test, data, sn1).float()
             output = "Epoch : {:.0f}  ===> Reconstruction Loss = {:.2f}".format((e + 1), Reconstruction_LOSS)
             print(output)

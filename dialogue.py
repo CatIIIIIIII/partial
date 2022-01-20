@@ -1,3 +1,5 @@
+from torch import nn
+
 from models import Model, MaskedNLLLoss, init_parameters
 import torch.optim as optim
 import torch
@@ -5,7 +7,7 @@ import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
 
 
-class Dialogue_Works:
+class Dialogue_Works(nn.Module):
     def __init__(self, model, D_h, D_g, D_p, D_e, D_y, party,
                  n_classes,
                  context_attention,
@@ -28,6 +30,7 @@ class Dialogue_Works:
         :param lr: learning rate
         :param loss_weights: class balanced weights
         """
+        super(Dialogue_Works, self).__init__()
         self.model = model
         self.D_h, self.D_g, self.D_p, self.D_e, self.D_y = D_h, D_g, D_p, D_e, D_y
         self.n_classes = n_classes
@@ -60,10 +63,6 @@ class Dialogue_Works:
 
                 x, q_mask, u_mask, label = [d.cuda() for d in data[:-1]]
                 vid = data[-1]
-                # print(x.shape)
-                # print(q_mask.shape)
-                # print(u_mask.shape)
-                # print(label.shape)
                 log_prob, c = self.net(x, q_mask, u_mask)  # seq_len, batch, n_classes
 
                 # c = c.detach()
@@ -86,15 +85,6 @@ class Dialogue_Works:
                     loss.backward()
                     self.optimizer.step()
 
-                # if args.tensorboard:
-                #     for param in model.named_parameters():
-                #         writer.add_histogram(param[0], param[1].grad, epoch)
-                # else:
-                #     alphas += alpha
-                #     alphas_f += alpha_f
-                #     alphas_b += alpha_b
-                #     vids += data[-1]
-
             if preds:
                 preds = np.concatenate(preds)
                 labels = np.concatenate(labels)
@@ -107,10 +97,6 @@ class Dialogue_Works:
             avg_fscore = round(f1_score(labels, preds, sample_weight=masks, average='weighted') * 100, 2)
 
             return avg_loss, avg_accuracy, avg_fscore, context
-            # output = 'train: ' if train else 'test: '
-            # output += 'epoch {} avg_loss {} avg_accuracy {} avg_fscore {}'.format(e, avg_loss, avg_accuracy, avg_fscore)
-            # print(output)
-            # return avg_loss, avg_accuracy, labels, preds, masks, avg_fscore, [alphas, alphas_f, alphas_b, vids]
 
     def build_model(self):
         net = None

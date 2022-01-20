@@ -9,8 +9,8 @@ def init_parameters(net):
     for name, param in net.named_parameters():
         if 'weight' in name:
             init.xavier_normal_(param)
-        elif 'bias' in name:
-            init.constant_(param, val=0)
+        else:
+            nn.init.zeros_(param)
 
 
 # ----- Dialogue Emotion Networks ----- #
@@ -137,11 +137,11 @@ class DialogueRNNCell(nn.Module):
         U_c_ -> batch, party, D_m + D_g
         """
         if self.party_attention:
-            e0 = torch.zeros(qmask.size()[0], self.party, self.D_e).type(U.type()) if e0.size()[0] == 0 else e0
+            e0 = torch.zeros(qmask.shape[0], self.party, self.D_e).type(U.type()) if e0.size()[0] == 0 else e0
         else:
-            e0 = torch.zeros(qmask.size()[0], self.D_e).type(U.type()) if e0.size()[0] == 0 else e0
+            e0 = torch.zeros(qmask.shape[0], self.D_e).type(U.type()) if e0.size()[0] == 0 else e0
 
-        q0 = torch.zeros(qmask.size()[0], self.party, self.D_p).type(U.type()) if q0.size()[0] == 0 else q0
+        q0 = torch.zeros(qmask.shape[0], self.party, self.D_p).type(U.type()) if q0.size()[0] == 0 else q0
 
         qm_idx = torch.argmax(qmask, 1)  # indicate which person
         q0_sel = _select_parties(q0, qm_idx)
@@ -149,15 +149,15 @@ class DialogueRNNCell(nn.Module):
 
         if g_hist.size()[0] == 0:
             g_ = self.g_cell(torch.cat([U, q0_sel, e0_sel], dim=1),
-                             torch.zeros((U.size()[0], self.D_g), dtype=torch.float32).type(U.type()))
+                             torch.zeros((U.shape[0], self.D_g), dtype=torch.float32).type(U.type()))
         else:
             g_ = self.g_cell(torch.cat([U, q0_sel, e0_sel], dim=1), g_hist[-1])
 
         g_ = self.dropout(g_)
         g_hist = torch.cat([g_hist, g_.unsqueeze(0)], 0)
 
-        if g_hist.size()[0] == 0:
-            gc_ = torch.zeros((U.size()[0], self.D_g), dtype=torch.float32).type(U.type())
+        if g_hist.shape[0] == 0:
+            gc_ = torch.zeros((U.shape[0], self.D_g), dtype=torch.float32).type(U.type())
             alpha = None
         else:
             gc_, alpha = self.attention(g_hist, U)  # batch_size, D_g
@@ -166,12 +166,13 @@ class DialogueRNNCell(nn.Module):
         U_gc_ = torch.cat((U, gc_, e0_sel), dim=1).unsqueeze(1).expand(-1, qmask.size()[1], -1)
 
         qs_ = self.p_cell(U_gc_.contiguous().view(-1, self.D_m + self.D_g + self.D_e),
-                          q0.view(-1, self.D_p)).view(U.size()[0], -1, self.D_p)
+                          q0.view(-1, self.D_p)).view(U.shape[0], -1, self.D_p)
         qs_ = self.dropout(qs_)
 
         ql_ = q0
         qmask_ = qmask.unsqueeze(2)
         q_ = ql_ * (1 - qmask_) + qs_ * qmask_
+        # q_ = qs_
         q_hist = torch.cat([q_hist, q_.unsqueeze(0)], 0)
 
         if self.party_attention is not None:
@@ -297,7 +298,7 @@ class Model(nn.Module):
                                         context_attention, party_attention, D_a, dropout_rec)
         self.dialog_rnn_b = DialogueRNN(D_h, D_g, D_p, D_e, self.party,
                                         context_attention, party_attention, D_a, dropout_rec)
-        self.linear1 = nn.Linear(2*D_e, D_y)
+        self.linear1 = nn.Linear(2 * D_e, D_y)
         self.linear2 = nn.Linear(D_y, D_y // 2)
         # self.linear3     = nn.Linear(D_h, D_h)
         self.smax_fc = nn.Linear(D_y // 2, n_classes)
@@ -363,7 +364,8 @@ class MaskedNLLLoss(nn.Module):
 
 # ----- Partial Multi-view Networks ----- #
 class CPMNets(nn.Module):  # The architecture of the CPM
-    """build model
+    """
+    build model
     """
 
     def __init__(self, view_num, trainLen, testLen, layer_size, v, lsd_dim=128, lamb=1):
@@ -403,7 +405,39 @@ class CPMNets(nn.Module):  # The architecture of the CPM
             nn.init.xavier_normal_(w.weight)
             nn.init.constant_(w.bias, 0.0)
             net1.add_module('lin' + str(num), w)
-            net1.add_module('act' + str(num), a)
+            # net1.add_module('act' + str(num), a)
             net1.add_module('drop' + str(num), torch.nn.Dropout(p=0.1))
 
         return net1
+
+
+class CpmGenerator(nn.Module):
+    def __init__(self, layer_size, lsd_dim):
+        super(CpmGenerator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(lsd_dim, layer_size[0]),
+            nn.BatchNorm1d(layer_size[0], 0.8),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(layer_size[0], layer_size[1]),
+        )
+        # init_parameters(self.model)
+        self.model.cuda()
+
+    def forward(self, x):
+        return self.model(x)
+
+
+class CpmDiscriminator(nn.Module):
+    def __init__(self, layer_size):
+        super(CpmDiscriminator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(layer_size[1], layer_size[1] // 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(layer_size[1] // 2, 1),
+        )
+        # init_parameters(self.model)
+        self.model.cuda()
+
+    def forward(self, x):
+        return self.model(x)
+

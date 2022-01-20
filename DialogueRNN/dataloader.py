@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Dataset
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import pad_sequence, pad_packed_sequence
 import pickle
 import pandas as pd
 from utils import get_sn
@@ -44,7 +44,7 @@ class IEMOCAPDataset(Dataset):
 
     def collate_fn(self, data):
         dat = pd.DataFrame(data)
-        return [pad_sequence(dat[i]) if i < 4 else pad_sequence(dat[i], True) if i < 6 else dat[i].tolist() for i in
+        return [pad_packed_sequence(dat[i], total_length=128) if i < 4 else pad_packed_sequence(dat[i], True, total_length=128) if i < 6 else dat[i].tolist() for i in
                 dat]
 
 
